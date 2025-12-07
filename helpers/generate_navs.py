@@ -81,6 +81,18 @@ def check_blogs_dirs_to_mkdocs_yml():
                 print("expected:", expect_blog_name)
             else:
                 print_green("mkdocs.yml blog_dirs is expected")
+        elif "document-dates" in plugin_dict:
+            exclude_dir = plugin_dict["document-dates"]["exclude"]
+            _, expect_idx_md_path = get_blog_dirs_and_index_md()
+            expect_idx_md_name = [str(p.relative_to(doc_dir).as_posix()) 
+                                  for p in expect_idx_md_path]
+
+            if set(expect_idx_md_name).issubset(set(exclude_dir)):
+                print_green("mkdocs.yml document-dates exclude is expected")
+            else:
+                print_red("mkdocs.yml document-dates exclude is not expected")
+                print("expected:", expect_idx_md_name)
+                print("exclude:", exclude_dir)
 
 
 def generate_links_for_category():

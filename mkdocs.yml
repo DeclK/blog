@@ -86,6 +86,8 @@ plugins:
       exclude:                 # List of excluded files
         - index.md
         - about.md
+        - CUDA/index.md
+        - LLMs/index.md
       date_format: '%Y-%m-%d'  # Date format strings (e.g., %Y-%m-%d, %b %d, %Y)
       time_format: '%H:%M:%S'  # Time format strings (valid only if type=datetime)
       show_author: true        # Show author: true(avatar) text(text) false(hidden), default: true
