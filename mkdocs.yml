@@ -1,0 +1,187 @@
+site_name: DeclK's Blog
+site_author: DeclK
+site_url: https://declk.github.io/blog
+repo_url: https://github.com/declk/blog/
+repo_name: Blog GitHub
+copyright: Copyright &copy; 2025 - Present <a href="https://github.com/declk/" target="_blank" rel="noopener">DeclK</a>
+
+theme:
+  name: material
+  language: en
+  custom_dir: overrides
+
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.footnote.tooltips
+    - content.tabs.link
+    - header.autohide
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.top
+    - navigation.path
+    - navigation.indexes
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: light mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: dark mode
+
+  font:
+    text: JetBrains Mono
+
+  favicon: img/declk.jpg
+
+  icon:
+    logo: material/image-filter-hdr-outline
+    repo: fontawesome/brands/git-alt
+    edit: material/pencil
+
+  static_templates:
+    - 404.html
+
+use_directory_urls: false
+
+plugins:
+  - blogging:
+      locale: en
+      dirs:
+        - LLMs
+        - CUDA
+      show_total: false
+      size: 5
+      features:
+        tags:
+          index_page: tags/
+          insert: top
+  - callouts
+  - glightbox:
+      width: 80%
+  - minify:
+      minify_html: true
+  - mkdocs-video:
+      video_muted: True
+      video_controls: True
+      mark: "video"
+  - rss:
+      enabled: !ENV [CI, false]
+      use_material_social_cards: false
+  - search
+  - awesome-nav
+  - document-dates:
+      position: top            # Display position: top(after title) bottom(end of document), default: top
+      type: date               # Date type: date datetime timeago, default: date
+      exclude:                 # List of excluded files
+        - temp.md                  # Example: exclude the specified file
+        - blog/*                   # Example: exclude all files in blog folder, including subfolders
+        - CUDA/index.md            
+        # - LLMs/index.md            
+        - index.md
+      date_format: '%Y-%m-%d'  # Date format strings (e.g., %Y-%m-%d, %b %d, %Y)
+      time_format: '%H:%M:%S'  # Time format strings (valid only if type=datetime)
+      show_author: true        # Show author: true(avatar) text(text) false(hidden), default: true
+  - statistics:
+      words_per_minute: 200
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - md_in_html
+  - nl2br
+  - pymdownx.arithmatex:
+      generic: true
+      block_tag: 'div'  # 块级公式用 div 包裹
+      inline_tag: 'span'  # 行内公式用 span 包裹
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      options:
+        custom_icons:
+          - overrides/.icons
+  - pymdownx.highlight:
+      anchor_linenums: true
+      auto_title: true
+      linenums: true
+      linenums_style: pymdownx-inline
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.magiclink
+  - pymdownx.saneheaders
+  - pymdownx.snippets
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed:
+      alternate_style: true
+      # slugify: !!python/object/apply:pymdownx.slugs.slugify
+      #   kwds:
+      #     case: lower
+  - pymdownx.tilde
+  - sane_lists
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 4
+
+extra_javascript:
+  - js/mathjax_fix.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - https://gcore.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.1.0/style.css
+  - https://gcore.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css
+  - css/custom.css
+  - css/card.css
+  - css/flink.css
+  - css/tasklist.css
+  - css/footer-stats.css
+  - css/mathjax.css
+  - css/markdown.css
+
+extra:
+  homepage: /
+  social:
+    - icon: /fontawesome/brands/github
+      link: https://github.com/declk/
+      name: GitHub
+    - icon: /fontawesome/brands/zhihu
+      link: https://www.zhihu.com/people/DeclK
+      name: Zhihu
+    - icon: /fontawesome/solid/paper-plane
+      link: mailto:1605224559@qq.com
+      name: send email to me!
+
+  analytics:
+    provider: google
+    property: G-NKJWZM1JHX

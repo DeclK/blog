@@ -1,0 +1,37 @@
+/* Header title font weight */
+.md-header__topic .md-ellipsis a {
+  font-weight: 700;
+}
+
+.md-content p {
+    margin-top: 0.7em;    /* 段前间距 */
+    margin-bottom: 0.2em; /* 段后间距 */
+    line-height: 1.6em;   /* 行高 */
+}
+
+/* 列表项间距 */
+.md-content li {
+    margin-top: -0.3em;
+}
+
+/* 列表与正文之间的间隔 */
+.md-content ul,
+.md-content ol {
+    margin-top: 0.0em;    /* 与段落 p 的 margin-top 保持一致 */
+    margin-bottom: 0.0em; /* 与段落 p 的 margin-bottom 保持一致 */
+}
+
+.md-content h3,
+.md-content h4 {
+    margin-top: 0.3em;     /* 标题与上方内容的距离，形成视觉分隔 */
+    margin-bottom: 0.4em;
+}
+
+.md-content h2 {
+    margin-top: 0.0em;
+    border-bottom: 3px solid rgba(0, 0, 0, 0.1);
+}
+
+.md-content h1 {
+    border-bottom: 3px solid rgba(0, 0, 0, 0.1);
+}

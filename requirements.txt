@@ -1,0 +1,10 @@
+mkdocs-material
+mkdocs-blogging-plugin
+mkdocs-callouts
+mkdocs-minify-plugin
+mkdocs-glightbox
+mkdocs-video
+mkdocs-rss-plugin
+mkdocs-document-dates
+mkdocs-statistics-plugin
+mkdocs-awesome-nav  # requires python >= 3.10
