@@ -1,5 +1,6 @@
 ---
 comments: false
+nostatistics: true
 ---
 # About Me
 

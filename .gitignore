@@ -4,3 +4,4 @@ site
 TaskNotes/
 .env
 .ai_cache
+.dates_cache.jsonl

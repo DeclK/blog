@@ -17,7 +17,7 @@
 /* 列表与正文之间的间隔 */
 .md-content ul,
 .md-content ol {
-    margin-top: 0.0em;    /* 与段落 p 的 margin-top 保持一致 */
+    margin-top: 0.6em;    /* 与段落 p 的 margin-top 保持一致 */
     margin-bottom: 0.0em; /* 与段落 p 的 margin-bottom 保持一致 */
 }
 

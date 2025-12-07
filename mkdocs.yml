@@ -66,10 +66,6 @@ plugins:
         - CUDA
       show_total: false
       size: 5
-      features:
-        tags:
-          index_page: tags/
-          insert: top
   - callouts
   - glightbox:
       width: 80%
@@ -88,11 +84,8 @@ plugins:
       position: top            # Display position: top(after title) bottom(end of document), default: top
       type: date               # Date type: date datetime timeago, default: date
       exclude:                 # List of excluded files
-        - temp.md                  # Example: exclude the specified file
-        - blog/*                   # Example: exclude all files in blog folder, including subfolders
-        - CUDA/index.md            
-        # - LLMs/index.md            
         - index.md
+        - about.md
       date_format: '%Y-%m-%d'  # Date format strings (e.g., %Y-%m-%d, %b %d, %Y)
       time_format: '%H:%M:%S'  # Time format strings (valid only if type=datetime)
       show_author: true        # Show author: true(avatar) text(text) false(hidden), default: true
@@ -110,8 +103,6 @@ markdown_extensions:
   - nl2br
   - pymdownx.arithmatex:
       generic: true
-      block_tag: 'div'  # 块级公式用 div 包裹
-      inline_tag: 'span'  # 行内公式用 span 包裹
   - pymdownx.caret
   - pymdownx.critic
   - pymdownx.details
@@ -144,9 +135,6 @@ markdown_extensions:
       custom_checkbox: true
   - pymdownx.tabbed:
       alternate_style: true
-      # slugify: !!python/object/apply:pymdownx.slugs.slugify
-      #   kwds:
-      #     case: lower
   - pymdownx.tilde
   - sane_lists
   - tables

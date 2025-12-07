@@ -1,19 +1,19 @@
 ---
 comments: false
 hide:
-  - toc
-  - navigation
+    - toc
+    - navigation
 icon: material/home
 nostatistics: true
 ---
 <h1 style="text-align: center;">
 <span style="font-size:40px;">
-Climbing the AI mountain 🤗
+Climbing the AI mountain 🧗
 </span>
 </h1>
 
 <span style="display: block; text-align: center; font-size: 18px; margin-top: -50px; margin-bottom: 50px;">
- [:octicons-info-16: About Me](./about.md)
+    [:octicons-info-16: About Me](./about.md)
 </span>
 
 !!! note "Anouncement"
