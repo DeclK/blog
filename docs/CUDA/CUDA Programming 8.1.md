@@ -57,7 +57,7 @@ $$
 
 如此一来我们就完成了从整数到整数的映射：我们从整数$x$出发，寻找其对应的坐标点，然后通过步长进行新的映射
 
-此时你可能发现了，将$f$与$g$其实非常相似，都是将坐标映射到整数。在之前我也提到了，$f$本身就是 row-major 的排列方式，其可用一个特殊的 layout 来表示，该 layout 我们称之为 layout left (or natural layout)
+此时你可能发现了，将$f$与$g$其实非常相似，都是将坐标映射到整数。在之前我也提到了，$f$本身就是 column-major 的排列方式，其可用一个特殊的 layout 来表示，该 layout 我们称之为 layout left (or natural layout)
 
 $$
 shape=(s_0,s_1,...,s_{n-1})\\ stride=(d_0,d_1,...,d_{n-1})\\
@@ -322,13 +322,13 @@ $$
 他们之间的关系非常清晰
 
 $$
-(x_0,x_1,\ldots,x_n) \leftrightarrow{L} x' \leftrightarrow{N} (x_0',x_1',\ldots,x_n')
+(x_0,x_1,\ldots,x_n) \xleftrightarrow{L} x' \xleftrightarrow{N} (x_0',x_1',\ldots,x_n')
 $$
 
 这里的$N$就是 inverse layout 的 natural function。现在问题转换为：对于一组$(x_0,x_1,...,x_n)$与$(x_0',x_1',...,x_n')$，他们彼此都是对方的 permutation，我们需要找到合适的 natural layout function 即可。其实对于第一个要求非常好满足（忽略 natural layout 限制），我们可以直接对$L$中的 shape & stride 进行 permute 即可。以简单的 `Layout(shape=[2,3], stride=[3,1])` 为例子，当 permute shape & stride 时，坐标也随之 permute
 
 $$
-(x_0,x_1) \leftrightarrow{(2,3):(3,1)} x' \leftrightarrow{(3,2):(1,3)} (x_1,x_0)
+(x_0,x_1) \xleftrightarrow{(2,3):(3,1)} x' \xleftrightarrow{(3,2):(1,3)} (x_1,x_0)
 $$
 
 现在只需要考虑 natural layout 的限制即可，而答案也就随之浮出水面：只需要将$L$的 shape & stride permute 成为一个 natural layout (left layout) 即可。更具体来说，根据 stride 的大小，从小到大进行排列，由于 layout 有 compact 保证，没有任何空洞，所以排列出来的 layout 必定也是 natural layout。所以此 permutation 存在且唯一，确定了 inverse layout 的 shape，其对应的 stride 也可由下面的式子进行计算
