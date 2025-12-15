@@ -160,7 +160,7 @@ Tree 模式的 intuitive 来自于：每一次多猜几个 token，通过多种�
 
 <img src="EAGLE Speculative Decoding/image-20250401223737838.png" alt="image-20250401223737838" style="zoom:80%;" />
 
-    一行一行的看：
+一行一行的看：
 
 1. input token `It`，initial token，很好理解，其得分为 1。通过其 logits 生成第二行
 2. input token `is & has`，是通过 logits 中选出来的 top2 token，他们对应的概率为 0.6 & 0.2，每一个节点的累计得分为它的概率乘以其父节点的得分，所以其累计得分为 0.6 和 0.2
