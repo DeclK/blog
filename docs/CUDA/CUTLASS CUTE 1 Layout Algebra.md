@@ -2,12 +2,11 @@
 
 这是整个 cute 的核心，并且 cute 本身文档很难读，而且网上没有太多的学习资料，所以就算是 GPT 也很难给出好的回答。我的学习资料主要来源于三个部分：1. Reed zhihu 2. [Lei Mao's blog](https://leimao.github.io/article/CuTe-Layout-Algebra/) 3. [A note on the algebra of CuTe Layouts](https://research.colfax-intl.com/a-note-on-the-algebra-of-cute-layouts/)
 
-我想以四个部分来介绍，目的是为了形成对 layout algebra 的清晰理解，使得我在阅读代码的时候能够进行逻辑推理
+我想以三个部分来介绍，目的是为了形成对 layout algebra 的清晰理解
 
 1. layout 基本概念
 2. layout algebra 基本运算
 3. layout algebra 组合运算
-4. layout algebra 直观总结
 
 ## 基本概念
 
@@ -272,7 +271,7 @@ Conditions:
 - shape & stride 为$S=(s_0,s_1,...,s_n),D=(d_0,d_1,...d_n)$
 
 - natural layout funciton 将多维坐标$(x_0, x_1, ...,x_n)$映射为$x$
-    
+  
     $$
     x=x_0+x_1·s_0+...+x_n·\prod_0^{n-1}s_i
     $$
@@ -280,7 +279,7 @@ Conditions:
 Target:
 
 - 找到 inverse layout:$f_{L'}(x)$使得满足
-    
+  
     $$
     f_{L'}(f_L(x)) = x
     $$
