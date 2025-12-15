@@ -8,7 +8,6 @@ nostatistics: true
 一个算法工程师的 CUDA 学习之路
 
 !!! abstract "Table of Contents"
-    - [CUDA Programming 8.1](CUDA Programming 8.1.md)
     - [CUTLASS CUTE 1 Layout Algebra](CUTLASS CUTE 1 Layout Algebra.md)
     - [CUTLASS CUTE 2 MMA & COPY 抽象](CUTLASS CUTE 2 MMA & COPY 抽象.md)
     - [CUTLASS CUTE 3 重要补充材料](CUTLASS CUTE 3 重要补充材料.md)
