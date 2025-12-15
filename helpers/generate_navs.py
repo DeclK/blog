@@ -57,6 +57,11 @@ def format_front_matter():
     """ Make sure front matter of index.md is fixed. """
     _, index_md = get_blog_dirs_and_index_md()
     for md in index_md:
+        md: Path
+        if not md.exists(): 
+            md.touch()
+            # write its parent dir as h1 titile in index.md
+            md.write_text(f"# {md.parent.name} \n")
         text = md.read_text(encoding="utf-8")
         # write format front matter into md
         with open(md, "w", encoding="utf-8") as f:
@@ -110,7 +115,6 @@ def generate_links_for_category():
 
         if not pattern.search(idx_md_text):
             # force to add the table of content
-            print_red("[WARNING] No table of content found in index.md.")
             idx_md_text = idx_md_text.rstrip()
             idx_md_text += "\n" * 2 + postfix_line + "\n"
 

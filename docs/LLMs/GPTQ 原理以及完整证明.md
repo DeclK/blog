@@ -1,4 +1,6 @@
-# GPTQ
+# GPTQ 原理以及完整证明
+
+GPTQ 即使提出的时间相当早（2022），但目前仍然活跃在当前（2025）的 LLM 量化方法当中，可见其强大之处。本文将对 GPTQ 的原理进行深入理解，并且对论文中的公式进行完整的证明。原论文中许多公式和结论直接一笔带过，甚至没有说明，这给论文的阅读带来相当大的难度，本文可能是全网唯一对 GPTQ 进行完整证明的文章
 
 - 论文：[GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers](https://arxiv.org/abs/2210.17323)
 - 论文代码：https://github.com/IST-DASLab/gptq
@@ -219,10 +221,10 @@ $$
 > 
 > 其中：
 >
-> -$\mathbf{H}_{-q}$是移除第$q$行和第$q$列后的$(n-1) \times (n-1)$子矩阵（即我们要求的逆的部分）。
-> -$\mathbf{c}$是$\mathbf{H}$的第$q$列，但移除第$q$行元素（一个$(n-1) \times 1$列向量）。
-> -$\mathbf{d}^\top$是$\mathbf{H}$的第$q$行，但移除第$q$列元素（一个$1 \times (n-1)$行向量）。
-> -$e = \mathbf{H}_{q,q}$是一个标量。
+> - $\mathbf{H}_{-q}$是移除第$q$行和第$q$列后的$(n-1) \times (n-1)$子矩阵（即我们要求的逆的部分）。
+> - $\mathbf{c}$是$\mathbf{H}$的第$q$列，但移除第$q$行元素（一个$(n-1) \times 1$列向量）。
+> - $\mathbf{d}^\top$是$\mathbf{H}$的第$q$行，但移除第$q$列元素（一个$1 \times (n-1)$行向量）。
+> - $e = \mathbf{H}_{q,q}$是一个标量。
 >
 > 根据 schur complement 的定义，我们可以得到$H^{-1}$的表达式
 > 
@@ -246,9 +248,9 @@ $$
 > 
 > 从这个分块形式中，我们可以识别：
 >
-> -$\mathbf{H}^{-1}$的右下角元素是$[\mathbf{H}^{-1}]_{q,q} = \frac{1}{\delta}$，因此$\delta = \frac{1}{[\mathbf{H}^{-1}]_{q,q}}$
-> -$\mathbf{H}^{-1}$的第$q$列（移除第$q$行元素，可记为$(\mathbf{H}^{-1}_{:,q})_{-q}$）是$\mathbf{m} = -\frac{1}{\delta} \mathbf{H}_{-q}^{-1} \mathbf{c}$，
-> -$\mathbf{H}^{-1}$的第$q$行（移除第$q$列元素，可记为$(\mathbf{H}^{-1}_{q,:})_{-q}$）是$\mathbf{n}^\top = -\frac{1}{\delta} \mathbf{d}^\top \mathbf{H}_{-q}^{-1}$
+> - $\mathbf{H}^{-1}$的右下角元素是$[\mathbf{H}^{-1}]_{q,q} = \frac{1}{\delta}$，因此$\delta = \frac{1}{[\mathbf{H}^{-1}]_{q,q}}$
+> - $\mathbf{H}^{-1}$的第$q$列（移除第$q$行元素，可记为$(\mathbf{H}^{-1}_{:,q})_{-q}$）是$\mathbf{m} = -\frac{1}{\delta} \mathbf{H}_{-q}^{-1} \mathbf{c}$，
+> - $\mathbf{H}^{-1}$的第$q$行（移除第$q$列元素，可记为$(\mathbf{H}^{-1}_{q,:})_{-q}$）是$\mathbf{n}^\top = -\frac{1}{\delta} \mathbf{d}^\top \mathbf{H}_{-q}^{-1}$
 >
 > 我们需要求解$\mathbf{H}_{-q}^{-1}$，其存在于$A$中，我们已知$\mathbf{A} = (\mathbf{H}^{-1})_{-q}$，所以通过一些简单整理就能够得到$\mathbf{H}_{-q}^{-1}$。我们先把$\mathbf{A}$的式子展开：
 > 
@@ -288,7 +290,7 @@ $$
 >   
 >   其中$\mathbf{P}$是置换矩阵（$\mathbf{P}^{-1} = \mathbf{P}^\top$）。
 >
-> -$\widetilde{\mathbf{H}}$的逆为：
+> - $\widetilde{\mathbf{H}}$的逆为：
 >   
 >   $$
 >   \widetilde{\mathbf{H}}^{-1} = \mathbf{P} \mathbf{H}^{-1} \mathbf{P}^\top

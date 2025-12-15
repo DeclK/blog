@@ -37,8 +37,8 @@ def fix_inline_math(line: str) -> str:
     if not is_inline_math(line): return line
     # replace $$ with $
     line = re.sub(r'\$\$', '$', line)
-    # remove extra space around $
-    line = re.sub(r'\s*\$\s*', '$', line)
+    # remove extra space around $, except when start with list `-` and `.`
+    line = re.sub(r'(?<![-.])\s*\$\s*', '$', line)
     return line
 
 def detect_line_context(line: str) -> Tuple[str, str]:
