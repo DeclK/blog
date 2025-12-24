@@ -14,7 +14,7 @@ $$
 \boldsymbol{M} = \boldsymbol{U} \boldsymbol{\Lambda} \boldsymbol{U}^\top
 $$
 
-    其中$\boldsymbol U,\boldsymbol{\Lambda} \in \mathbb{R}^{n \times n}$，并且$\boldsymbol{U}$是正交矩阵$\boldsymbol{\Lambda} = \operatorname{diag}(\lambda_1, \cdots, \lambda_n)$是对角矩阵
+其中$\boldsymbol U,\boldsymbol{\Lambda} \in \mathbb{R}^{n \times n}$，并且$\boldsymbol{U}$是正交矩阵$\boldsymbol{\Lambda} = \operatorname{diag}(\lambda_1, \cdots, \lambda_n)$是对角矩阵
 
 谱定理的几何特性：实对称矩阵代表的线性变换会将单位圆缩放为椭圆，椭圆的缩放方向为特征向量，在 [zhihu](https://zhuanlan.zhihu.com/p/1914024366347388318) 中有二维的可视化结果。这说明实对称矩阵的变换没有旋转（rotation），也没有剪切（shear），只有单纯的缩放，因为任何的旋转和剪切效应都会破坏实对称性质
 
@@ -172,7 +172,7 @@ $$
 1. 数据样本$X \in \mathbb R^{n\times k}$，数据样本个数为$n$，维度为$k$
 
 2. 中心矩阵$H \in \mathbb R^{n\times n}$，其作用是将数据进行中心化，等价于 `X - torch.mean(X, dim=0, keep_dim=True)`
-    
+   
     $$
     H = I_n - \frac{1}{n}1_n1_n^\top
     $$
@@ -180,7 +180,7 @@ $$
     其中$1_n$为一个全 1 的向量$1_n \in \mathbb R^{n\times1}$。中心化过后的数据样本即为$HX = X-\overline X$。中心矩阵有两个常用的性质$H^T=H$，$H^2=H$，其中第二个性质也比较好理解：对中心化过后的数据再做中心化是不变的
 
 3. 数据的方差矩阵$S \in \mathbb R^{k\times k}$表示
-    
+   
     $$
     S=(X-\overline X)^\top(X-\overline X)=(HX)^\top(HX)=X^\top H X
     $$
@@ -283,7 +283,7 @@ $$
 
 $$
 A=U\Sigma,B=V^T\\
-\min_{A,B}|AB-M\|_{F}^{2}=\sum_{i=1}^r{\sigma_i^2}
+\min_{A,B}\|AB-M\|_{F}^{2}=\sum_{i=1}^r{\sigma_i^2}
 $$
 
 其中$U,\Sigma,V,\sigma$就是$M$的奇异值分解中对应的各个矩阵和奇异值，为了满足 rank 的要求，我们只取前$r$个特征值/特征向量即可，即：$U\in \mathbb R^{n\times r}, \Sigma \in \mathbb R^{r\times r}, V \in \mathbb R^{m\times r}$。注意：该解为最优解之一，不保证唯一性，可能存在其他矩阵也能达到最小值
@@ -437,7 +437,7 @@ $$
     4. trace 线性性质：$\operatorname{tr}(A \pm B) = \operatorname{tr}(A) \pm \operatorname{tr}(B)$
     
     5. trace 中矩阵乘法可交换：$\operatorname{tr}(AB) = \operatorname{tr}(BA)$，需要保证$AB, BA$是可行的矩阵乘法。该性质还可拓展为 trace 循环
-        
+       
         $$
         \operatorname{tr}(ABC)=\operatorname{tr}(BCA)=\operatorname{tr}(CAB)
         $$
