@@ -1,6 +1,6 @@
 # CUTLASS CUTE 6 Hopper GEMM 高效实现
 
-引入了 tma & wgmma 之后，Hopper 的异步特性相比于 Ampere 得到了显著的增强。异步特性给我们带来性能优化的同事，也带来了不少的挑战，编程范式对比 Amepere 也发生了很大的转变。本文将介绍 Hopper 架构上的重要编程范式/优化核心，包含：warp specialization, producer-consumer model, persistant kernel, cooperative & pingpong schedule。通过这些优化技巧，我们最终能够实现匹配 DeepGEMM (某个Shape🤣) 的高效矩阵乘算法
+引入了 tma & wgmma 之后，Hopper 的异步特性相比于 Ampere 得到了显著的增强。异步特性给我们带来性能优化的同时，也带来了不少的挑战，编程范式对比 Amepere 也发生了很大的转变。本文将介绍 Hopper 架构上的重要编程范式/优化核心，包含：warp specialization, producer-consumer model, persistant kernel, cooperative & pingpong schedule。通过这些优化技巧，我们最终能够实现匹配 DeepGEMM (某个Shape🤣) 的高效矩阵乘算法
 
 ## Warp Specialization
 
