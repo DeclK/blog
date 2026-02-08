@@ -163,9 +163,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        'paths',
+        '--paths',
         nargs='+',
-        help='Markdown file or directory paths'
+        help='Markdown file or directory paths',
+        default=["docs"],
     )
 
     args = parser.parse_args()

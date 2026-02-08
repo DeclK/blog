@@ -271,7 +271,7 @@ Conditions:
 - shape & stride 为$S=(s_0,s_1,...,s_n),D=(d_0,d_1,...d_n)$
 
 - natural layout funciton 将多维坐标$(x_0, x_1, ...,x_n)$映射为$x$
-  
+    
     $$
     x=x_0+x_1·s_0+...+x_n·\prod_0^{n-1}s_i
     $$
@@ -279,7 +279,7 @@ Conditions:
 Target:
 
 - 找到 inverse layout:$f_{L'}(x)$使得满足
-  
+    
     $$
     f_{L'}(f_L(x)) = x
     $$

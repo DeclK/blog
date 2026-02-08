@@ -6,6 +6,17 @@
 2. [TonyCrane/note: TonyCrane's Public Notebook](https://github.com/TonyCrane/note)
 3. [科学空间|Scientific Spaces](https://spaces.ac.cn/)
 
+## Usage
+
+对于 python 来说不要太友好，安装依赖简单，并且只需要两步
+
+```shell
+pip install -r requirements.txt
+mkdocs serve
+# if default port is used, use -a to specify a new one
+# mkdocs serve -a 127.0.0.1:8000
+```
+
 ## Material
 
 以下记录了我的 mkdocs material 的修改/学习过程

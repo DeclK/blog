@@ -172,7 +172,7 @@ $$
 1. 数据样本$X \in \mathbb R^{n\times k}$，数据样本个数为$n$，维度为$k$
 
 2. 中心矩阵$H \in \mathbb R^{n\times n}$，其作用是将数据进行中心化，等价于 `X - torch.mean(X, dim=0, keep_dim=True)`
-   
+    
     $$
     H = I_n - \frac{1}{n}1_n1_n^\top
     $$
@@ -180,7 +180,7 @@ $$
     其中$1_n$为一个全 1 的向量$1_n \in \mathbb R^{n\times1}$。中心化过后的数据样本即为$HX = X-\overline X$。中心矩阵有两个常用的性质$H^T=H$，$H^2=H$，其中第二个性质也比较好理解：对中心化过后的数据再做中心化是不变的
 
 3. 数据的方差矩阵$S \in \mathbb R^{k\times k}$表示
-   
+    
     $$
     S=(X-\overline X)^\top(X-\overline X)=(HX)^\top(HX)=X^\top H X
     $$
@@ -437,7 +437,7 @@ $$
     4. trace 线性性质：$\operatorname{tr}(A \pm B) = \operatorname{tr}(A) \pm \operatorname{tr}(B)$
     
     5. trace 中矩阵乘法可交换：$\operatorname{tr}(AB) = \operatorname{tr}(BA)$，需要保证$AB, BA$是可行的矩阵乘法。该性质还可拓展为 trace 循环
-       
+        
         $$
         \operatorname{tr}(ABC)=\operatorname{tr}(BCA)=\operatorname{tr}(CAB)
         $$
