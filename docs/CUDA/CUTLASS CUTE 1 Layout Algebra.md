@@ -57,7 +57,7 @@ shape=(s_0,s_1,...,s_{n-1})\\ stride=(d_0,d_1,...,d_{n-1})\\
 d_i=\prod_{j=0}^{i-1}s_j=d_{i-1}s_{i-1},d_0=1
 $$
 
-举一个例子，一个 shape 为 `(2, 3, 4)` 的 natural layout 为
+举一个例子，一个 shape 为 `(2, 3)` 的 natural layout 为
 
 ```python
 Layout(shape=[2, 3], stride=[1, 2])
