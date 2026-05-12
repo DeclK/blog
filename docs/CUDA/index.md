@@ -14,3 +14,5 @@ nostatistics: true
     - [CUTLASS CUTE 4 GEMM 核心优化与实践](CUTLASS CUTE 4 GEMM 核心优化与实践.md)
     - [CUTLASS CUTE 5 Hopper 特性：tma & wgmma](CUTLASS CUTE 5 Hopper 特性：tma & wgmma.md)
     - [CUTLASS CUTE 6 Hopper GEMM 高效实现](CUTLASS CUTE 6 Hopper GEMM 高效实现.md)
+    - [CUTLASS CUTE 7 hpc-ops 之 group gemm & tma](CUTLASS CUTE 7 hpc-ops 之 group gemm & tma.md)
+    - [CUTLASS CUTE 8 hpc-ops 之 group gemm 实现细节](CUTLASS CUTE 8 hpc-ops 之 group gemm 实现细节.md)

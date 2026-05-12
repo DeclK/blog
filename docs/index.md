@@ -16,10 +16,6 @@ Climbing the AI mountain 🧗
     [:octicons-info-16: About Me](./about.md)
 </span>
 
-!!! note "Anouncement"
-    Looking for jobs right now!!!
-
-
 <h1 style="text-align: left;">
 <span style="font-size:30px;">
 Recent
