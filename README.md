@@ -13,8 +13,10 @@
 ```shell
 pip install -r requirements.txt
 mkdocs serve
+# make changes rendered immediately
+mkdocs serve --livereload
 # if default port is used, use -a to specify a new one
-# mkdocs serve -a 127.0.0.1:8000
+mkdocs serve -a 127.0.0.1:8000
 ```
 
 ## Material
