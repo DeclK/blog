@@ -9,29 +9,57 @@
     line-height: 1.6em;   /* 行高 */
 }
 
-/* 列表项间距 */
+/* 列表项行距与正文统一 */
 .md-content li {
-    margin-top: -0.3em;
+    line-height: 1.6em;
 }
 
 /* 列表与正文之间的间隔 */
 .md-content ul,
 .md-content ol {
-    margin-top: 0.6em;    /* 与段落 p 的 margin-top 保持一致 */
-    margin-bottom: 0.0em; /* 与段落 p 的 margin-bottom 保持一致 */
-}
-
-.md-content h3,
-.md-content h4 {
-    margin-top: 0.3em;     /* 标题与上方内容的距离，形成视觉分隔 */
-    margin-bottom: 0.4em;
-}
-
-.md-content h2 {
-    margin-top: 0.0em;
-    border-bottom: 3px solid rgba(0, 0, 0, 0.1);
+    margin-top: 0.6em;
+    margin-bottom: 0.6em;
 }
 
 .md-content h1 {
-    border-bottom: 3px solid rgba(0, 0, 0, 0.1);
+    margin-top: 0.0em;
+    border-bottom: 3px solid var(--md-default-fg-color--lightest);
+    padding-bottom: 0.15em;
+}
+.md-content h2 {
+    margin-top: 0.0em;
+    border-bottom: 2px solid var(--md-default-fg-color--lightest);
+    padding-bottom: 0.12em;
+}
+.md-content h3 {
+    margin-top: 0.3em;
+    margin-bottom: 0.4em;
+    border-bottom: 1px solid var(--md-default-fg-color--lightest);
+    padding-bottom: 0.1em;
+}
+.md-content h4,
+.md-content h5,
+.md-content h6 {
+    margin-top: 0.3em;
+    margin-bottom: 0.4em;
+    border-bottom: 1px solid var(--md-default-fg-color--lightest);
+    padding-bottom: 0.1em;
+}
+
+/* 减少代码块底部间距 */
+.md-typeset .highlight {
+    margin-bottom: 0.2em;
+}
+.md-typeset .highlighttable {
+    margin-bottom: 0.2em;
+}
+
+/* 标题书签常显 + hover 动效 */
+.md-typeset .headerlink {
+    opacity: 1;
+    transition: color 0.2s, transform 0.2s;
+}
+.md-typeset .headerlink:hover {
+    color: var(--md-accent-fg-color);
+    transform: scale(1.2);
 }
