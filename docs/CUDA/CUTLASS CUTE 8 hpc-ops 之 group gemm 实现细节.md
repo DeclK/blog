@@ -18,6 +18,7 @@
 SM90 架构的 MMA 指令有一个特点：**M 维度的粒度通常较大（64/128），而 N 维度的粒度可以更小（16/32）**。
 
 看 `config.h` 中的指令选择：
+
 ```cpp
 SM90_64x16x32_F32E4M3E4M3_SS_TN  // M=64, N=16
 SM90_64x32x32_F32E4M3E4M3_SS_TN  // M=64, N=32
@@ -59,10 +60,12 @@ cute::gemm(tiled_mma, tBr(_, _, ik, ismem_read), tAr(_, _, ik, ismem_read), tCr(
 ```
 
 不过此时，数据矩阵 Y 的 Layout 会发生改变
+
 ```txt
 原始问题：Y[M, N], Y is layout right: (M, N):(N, 1)
 转置问题：Y[N, M], Y is layout right: (N, M):(M, 1)
 ```
+
 此时两个 Y 的内存排布就完全不一样了，前者可以认为是 shape `(M, N)` 的 row major layout，而后者 `(N, M):(M, 1)` 可以认为是 column major layout `(M, N):(1, M)`，只需要我们把维度排布一下即可，元素在内存上的排布式完全一致的。但是我们的仍然希望我们的输出仍然是 row major 的，这就需要在 stsm (store shared memory, r2s copy) 的时候进行转置操作。所以我们可以看到 hpc-ops 使用了 `cute::SM90_U16x8_STSM_T` 作为 copy atom，这样就能在 copy 时顺便完成该转置操作。所以我们能够看到在 `config.h` 中使用了 N 维度连续的 smem layout：
 
 ```cpp
@@ -108,6 +111,7 @@ __device__ __forceinline__ void get_next_tile_horizon(
     int &sum_tile_m,         // [in,out] cumulative tile count (used to determine group idx)
     cutlass::FastDivmod flat_divider)  // [in] precomputed fast divider
 ```
+
 **代码逻辑详解**：
 
 ```cpp
@@ -292,20 +296,25 @@ def blockwise_gemm(X_q, X_s, W_q, W_s, Y):
     Y -> [M, N]
     return Y
 ```
+
 实际上我们的 TensorCore M 方向上并不是一个一个计算的，而是以 kTileM 为单位进行 mma 计算。这里只是为了方便逻辑表示，对每一个 M 进行了 iteration
 
 以上是一个朴素的 blockwise gemm，在 hpc-ops 当中，我们使用的是 group gemm，所以对于 X 和 W 都要做相应的 group 划分。我们从其 scale 的定义来一窥其中的改变
 
 **X scale** 的 Layout 为：
+
 ```cpp
 (num_block_k, m_pad) : (m_pad, 1)
 ```
+
 `num_block_k = k / 128`（K 维度每 128 个元素一个块），`m_pad` 是 padding 后的 M 维度大小。**为什么需要对 m 进行 pad？**原因仍然是在于 group gemm 有多个 group，我们需要针对每一个 group pad 到 CTATile 对齐的情况（128 in this case），pad scale 应该不是一个耗时的操作
 
 **W scale** 的 layout 为：
+
 ```cpp
 (num_block_n, num_block_k_pad4, num_group) : (num_block_k_pad4, 1, num_block_n * num_block_k_pad4)
 ```
+
 `num_block_n = n / 128`， `num_block_k_pad4` 是 padding 到 4 倍数的 `num_block_k`。**为什么要对 k 进行 pad？**可能原因在于 hpc-ops 定义的 weight scale copy box 的大小是 `(1, 4)`，所以最好进行 4 对齐处理。不过 tma 应该能够处理 out of bound 的情况，不太清楚这个 pad 是否是必须的
 
 ### CTA 问题划分
@@ -324,16 +333,21 @@ using SLayoutXS = decltype(make_layout(make_shape(Int<kStage>{}, Int<kTileS>{}),
 using SLayoutWS = decltype(make_layout(make_shape(Int<kStage>{}, Int<kTileS>{}),
                                         make_stride(Int<kTileS>{}, Int<1>{})));
 ```
+
 需要注意的是：对于 B scale 来说，每一个 stage 我们只需要一个 fp32 scale 用于计算，但是由于 tma 的最小 copy box 限制，hpc-ops 每次将会 copy 4 个 fp32 scale。这里还有一个技巧：我们在定义 tma copy 的时候，可以用 copy box 作为 slayout 参数传入
+
 ```cpp
 auto tma_xs = make_tma_copy(SM90_TMA_LOAD{}, xs, CopyBoxXS{});
 auto tma_ws = make_tma_copy(SM90_TMA_LOAD{}, ws, CopyBoxWS{});
 ```
+
 在之前的使用方法中，我们通常会直接使用真实的 smem layout 来作为 copy box 例如对 x 和 w 的 copy
+
 ```cpp
 auto tma_x = make_tma_copy(SM90_TMA_LOAD{}, x, take<0, 2>(SLayoutX{}));
 auto tma_w = make_tma_copy(SM90_TMA_LOAD{}, w, take<0, 2>(SLayoutW{}));
 ```
+
 所以我们可以不用传入真实的 smem layout，而是传入 copy box 作为虚拟的 smem layout 传入，此时可以灵活控制 copy 数据的区域。这样 copy box 就不能是简单的 Tiler/Shape，而是完整的 layout，在这里其排布为 row-major，对齐了 gmem & smem 当中的排布
 
 #### thread 获得 scale

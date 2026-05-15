@@ -462,12 +462,12 @@ Producer（update_grouped_tma）:
 
 ```cpp
 tma_descriptor_cp_fence_release(tma_xy + i, smem_tma_desc[i]);
-// "Release": 保证之前的所有写操作都可见
+// "Release": ensure all prior writes are visible
 ```
 
 Consumer（主 kernel）:
 
 ```cpp
 tma_descriptor_fence_acquire(td_xy + i);
-// "Acquire": 保证之后的读操作能看到完整的 descriptor
+// "Acquire": ensure subsequent reads see the complete descriptor
 ```
