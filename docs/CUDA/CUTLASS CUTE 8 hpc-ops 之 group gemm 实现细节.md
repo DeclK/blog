@@ -11,6 +11,7 @@
 ### Why Transpose？
 
 在普通的 GEMM kernel 中，通常固定 kTileM=128（M 维度的 tile 大小），这是因为 Tensor Core 的 MMA 指令通常在 M 维度有较大的粒度。但在 Group GEMM 场景中，每个 group 的 seqlen 可能很小（小 M 场景），如果 kTileM 太大，会导致：
+
 - 硬件利用率低（小矩阵无法填满 Tensor Core）
 - 需要大量 padding，浪费计算和内存
 
@@ -27,14 +28,14 @@ SM90_64x64x32_F32E4M3E4M3_SS_TN  // M=64, N=64
 
 ### hpc-ops transposed MMA
 
-```
+```txt
 Gemm  :  C[M, N] = A[M, K] @ B[K, N]
 
 原始问题: Y[M, N] = X[M, K] @ W^T[N, K]
 
 转置后:   Y[N, M] = W[N, K] @ X^T[M, K]
-           ↑              ↑           ↑
-         输出          Weight      Input
+            ↑              ↑           ↑
+            输出          Weight      Input
 ```
 
 GEMM 算法只要求你传入 A, B 两个矩阵的数据，并不会要求你的 A 矩阵一定是输入 X，B 矩阵一定是权重 W。所以 hpc-ops 把问题转置过来，A 矩阵传入的其实是权重数据，而 B 矩阵传入输入 X 数据。这样 MMA atom 在 M 维度粒度就能够变小了，对于小 seqlen or deocde 的场景非常有用
@@ -42,10 +43,10 @@ GEMM 算法只要求你传入 A, B 两个矩阵的数据，并不会要求你的
 具体代码在 `kernels.cuh` 第 313-317 行：
 
 ```cpp
-// sA 是 X [M, K], sB 是 W [N, K]
+// sA is X [M, K], sB is W [N, K]
 
-auto tBs4r = thr_mma.partition_A(sB);  // ← sB (W) 作为 MMA 的 A
-auto tAs4r = thr_mma.partition_B(sA);  // ← sA (X) 作为 MMA 的 B
+auto tBs4r = thr_mma.partition_A(sB);  // sB (W) as MMA operand A
+auto tAs4r = thr_mma.partition_B(sA);  // sA (X) as MMA operand B
 
 auto tBr = thr_mma.make_fragment_A(tBs4r);  // fragment A ← W
 auto tAr = thr_mma.make_fragment_B(tAs4r);  // fragment B ← X
@@ -54,7 +55,7 @@ auto tAr = thr_mma.make_fragment_B(tAs4r);  // fragment B ← X
 cute::gemm(tiled_mma, tBr(_, _, ik, ismem_read), tAr(_, _, ik, ismem_read), tCr(_, _, _));
 //                    ↑                          ↑                          ↑
 //                  fragment A               fragment B               fragment C
-//                  (W数据)                   (X数据)                   (Y^T)
+//                 (W data)                 (X data)                 (Y^T)
 ```
 
 不过此时，数据矩阵 Y 的 Layout 会发生改变
@@ -79,7 +80,7 @@ syncwarpgroup(iwarpgroup);
 cute::tma_store_fence();
 // code ...
 cute::copy(tma_d.with(td_y), tDs(_, iwarpgroup, Int<0>{}),
-           tDg(_, itile_n * 2 + iwarpgroup, itile_m));
+            tDg(_, itile_n * 2 + iwarpgroup, itile_m));
 ```
 
 ## Scheduler for Group Gemm
@@ -98,42 +99,43 @@ hpc-ops 提供了两种调度模式：**Horizontal 模式**（小矩阵用线性
 
 ```cpp
 __device__ __forceinline__ void get_next_tile_horizon(
-    const int *tiles_ptr,    // [in] 每个 group 的 tile 数
-    int iblock,              // [in] 当前 iteration_idx
-    int num_group,           // [in] group 总数
-    int &igroup,             // [in,out] 输入：上次找到的 group；输出：本次找到的 group
-    int &itile_m,            // [out] 在 group 内的 tile m 索引
-    int &itile_n,            // [out] tile n 索引
-    int &sum_tile_m,         // [in,out] 累积 tile 数（用于判断 group idx）
-    cutlass::FastDivmod flat_divider)  // [in] 预计算的 fast divider
+    const int *tiles_ptr,    // [in] tile count per group
+    int iblock,              // [in] current iteration_idx
+    int num_group,           // [in] total number of groups
+    int &igroup,             // [in,out] input: last found group; output: current found group
+    int &itile_m,            // [out] tile m index within group
+    int &itile_n,            // [out] tile n index
+    int &sum_tile_m,         // [in,out] cumulative tile count (used to determine group idx)
+    cutlass::FastDivmod flat_divider)  // [in] precomputed fast divider
 ```
 **代码逻辑详解**：
 
 ```cpp
-// 步骤 1: 将 iblock 分解为 (itile_m_total, itile_n)
-// flat_divider 做的是：
+// Step 1: decompose iblock into (itile_m_total, itile_n)
+// flat_divider computes:
 //   itile_m_total = iblock / num_tile_n
 //   itile_n = iblock % num_tile_n
 flat_divider(itile_m_total, itile_n, iblock);
 
-// 步骤 2: 从上次的 igroup 位置开始线性扫描
+// Step 2: linear scan starting from last igroup
 for (int i = igroup; i < num_group; i++) {
-  num_tile_m = tiles_ptr[i];      // 获取第 i 个 group 的 tile 数
-  sum_tile_m += num_tile_m;        // 累积
-  if (itile_m_total < sum_tile_m) {
-    // 找到！itile_m_total 落在第 i 个 group
+    num_tile_m = tiles_ptr[i];      // get tile count for group i
+    sum_tile_m += num_tile_m;        // accumulate
+    if (itile_m_total < sum_tile_m) {
+    // found! itile_m_total falls in group i
     igroup = i;
-    sum_tile_m = sum_tile_m - num_tile_m;  // 回退到 group 开始前
-    itile_m = itile_m_total - sum_tile_m;   // 计算在 group 内的索引
+    sum_tile_m = sum_tile_m - num_tile_m;  // rollback to before group start
+    itile_m = itile_m_total - sum_tile_m;   // compute index within group
     return;
-  }
+    }
 }
-igroup = -1;  // 没有更多 tile 了，结束
+igroup = -1;  // no more tiles, done
 ```
 
 **💡需要注意的是，所有的 `itile_m` i.e. `m_idx` 都是计算的 group 内的索引，而不是相对于第 0 个 group 的全局索引。**这是合理的，因为我们本来就为每一个 group 分配了独立的 tma，我们要计算的就是其 group 内的偏移
 
 **为什么小矩阵用线性扫描？**
+
 - 小矩阵意味着 `num_group` 不大
 - 线性扫描实现简单，指令数少
 - **增量搜索**：从上次的 `igroup` 位置继续，实际复杂度接近 O(1)
@@ -147,35 +149,35 @@ igroup = -1;  // 没有更多 tile 了，结束
 
 ```cpp
 __device__ __forceinline__ void get_next_tile_vert(
-    const int *cu_tiles_ptr,  // [in] 累积 tile 索引
-    int iblock,                // [in] 当前 block 索引，i.e. iteration_idx
-    int num_group,             // [in] group 总数
-    int &igroup,               // [out] 找到的 group
-    int &itile_m,              // [out] 在 group 内的 tile m 索引
-    int &itile_n,              // [out] tile n 索引
-    int total_m)               // [in] 总 tile m 数 = cu_tiles_ptr[num_group]
+    const int *cu_tiles_ptr,  // [in] cumulative tile index
+    int iblock,                // [in] current block index, i.e. iteration_idx
+    int num_group,             // [in] total number of groups
+    int &igroup,               // [out] found group
+    int &itile_m,              // [out] tile m index within group
+    int &itile_n,              // [out] tile n index
+    int total_m)               // [in] total tile m count = cu_tiles_ptr[num_group]
 ```
 
 **代码逻辑详解**：
 
 ```cpp
-// 步骤 1: 分解 iblock（注意这里和 Horizontal 模式不同！）
+// Step 1: decompose iblock (note: different from Horizontal mode!)
 int itile_m_total = iblock % total_m;
 itile_n = iblock / total_m;
 
-// 步骤 2: 二分查找找最大的 right 满足 cu_tiles_ptr[right] <= itile_m_total
+// Step 2: binary search for largest right where cu_tiles_ptr[right] <= itile_m_total
 int left = 0;
 int right = num_group;
 while (left <= right) {
-  int mid = left + (right - left) / 2;
-  if (cu_tiles_ptr[mid] > itile_m_total) {
+    int mid = left + (right - left) / 2;
+    if (cu_tiles_ptr[mid] > itile_m_total) {
     right = mid - 1;
-  } else {
+    } else {
     left = mid + 1;
-  }
+    }
 }
 
-// 步骤 3: 计算在 group 内的 tile m 索引
+// Step 3: compute tile m index within group
 itile_m = itile_m_total - cu_tiles_ptr[right];
 igroup = right;
 ```
@@ -186,15 +188,15 @@ igroup = right;
 
 ```cpp
 if constexpr (IsLoopH) {
-  // Horizontal 模式：缓存 tiles_ptr
-  for (int i = idx; i < num_group; i += blockDim.x) {
+    // Horizontal mode: cache tiles_ptr
+    for (int i = idx; i < num_group; i += blockDim.x) {
     shm_tiles[i] = tiles_ptr[i];
-  }
+    }
 } else {
-  // Vertical 模式：缓存 cu_tiles_ptr
-  for (int i = idx; i < (num_group + 1); i += blockDim.x) {
+    // Vertical mode: cache cu_tiles_ptr
+    for (int i = idx; i < (num_group + 1); i += blockDim.x) {
     shm_tiles[i] = cu_tiles_ptr[i];
-  }
+    }
 }
 ```
 
@@ -206,11 +208,11 @@ if constexpr (IsLoopH) {
 
 ```cpp
 if (k <= 1024 || n <= 1024) {
-  // Horizontal 模式：小矩阵，线性扫描
-  group_gemm_pertensor_fp8_kernel<..., true>(...);
+    // Horizontal mode: small matrix, linear scan
+    group_gemm_pertensor_fp8_kernel<..., true>(...);
 } else {
-  // Vertical 模式：大矩阵，二分查找
-  group_gemm_pertensor_fp8_kernel<..., false>(...);
+    // Vertical mode: large matrix, binary search
+    group_gemm_pertensor_fp8_kernel<..., false>(...);
 }
 ```
 
@@ -220,20 +222,20 @@ if (k <= 1024 || n <= 1024) {
 
 首先，让我们**明确 FastDivmod 在 hpc-ops 中实际做了什么数学运算**。在 Horizontal 模式 scheduler 中，我们有一个线性索引 `iblock`，需要把它**分解成二维坐标** `(itile_m_total, itile_n)`。假设我们有一个固定的除数 `b = num_tile_n`（tile N 的总数），对于任意输入 `a = iblock`，FastDivmod 计算：
 
-```
-q = a / b    （商，整数除法，向下取整）
-r = a % b    （余数）
+```txt
+q = a / b    (quotient, floor division)
+r = a % b    (remainder)
 ```
 
 使得：
 
-```
-a = q * b + r,    其中 0 ≤ r < b
+```txt
+a = q * b + r,    where 0 ≤ r < b
 ```
 
 在 hpc-ops 中的具体命名：
 
-```
+```txt
 itile_m_total = q = iblock / num_tile_n
 itile_n     = r = iblock % num_tile_n
 ```
@@ -250,43 +252,43 @@ BTW, 由于GPU 上整数除法指令很慢（~20 cycles），而 FastDiv 使用�
 我们首先介绍 blockwise quantization 具体是怎么计算的，然后再整理其 scale layout 形式
 
 ```python
-# 维度定义
+# dimension definitions
 M: int                  # 输入序列长度
 K: int                  # 隐藏层维度
 N: int                  # 输出维度
 block_size: int = 128   # 量化块大小
 
-# 输入与权重
+# input and weight
 X: Tensor = [M, K]      # 输入激活
 W: Tensor = [K, N]      # 权重
 Y: Tensor = [M, N]      # 输出结果
 
-# X 量化：每 K/block_size 块一个 scale
+# X quantization: one scale per K/block_size block
 X_q, X_s = quantize_X(X)
 # X_q.shape = [M, K]
 # X_s.shape = [M, K // block_size]
 
-# W 量化：每 (K/block_size, N/block_size) 块一个 scale  
+# W quantization: one scale per (K/block_size, N/block_size) block  
 W_q, W_s = quantize_W(W)
 # W_q.shape = [K, N]
 # W_s.shape = [K // block_size, N // block_size]
 
 def blockwise_gemm(X_q, X_s, W_q, W_s, Y):
-    # 维度重排，方便分块计算
+    # reshape for blocked computation
     X_q -> [M, K // block_size, block_size]
         -> [K // block_size, M, 1, block_size]
 
     W -> [K // block_size, block_size, N // block_size, block_size]
-      -> [K // block_size, N // block_size, block_size, block_size]
+        -> [K // block_size, N // block_size, block_size, block_size]
 
     Y -> [M, N]
-      -> [M, N // block_size, block_size]
+        -> [M, N // block_size, block_size]
 
-    # 分块矩阵乘法
+    # blocked matrix multiplication
     for i, j, k in iteration(M, N // block_size, K // block_size):
-        Y[i, j] += X_q @ W_q * X_s[k, i] * W_s[k, j]  # 反量化缩放
+        Y[i, j] += X_q @ W_q * X_s[k, i] * W_s[k, j]  # dequantization scaling
 
-    # 结果 reshape
+    # reshape result
     Y -> [M, N]
     return Y
 ```
@@ -314,13 +316,13 @@ def blockwise_gemm(X_q, X_s, W_q, W_s, Y):
 
 ```cpp
 using CopyBoxXS = decltype(make_layout(make_shape(Int<1>{}, Int<kTileM>{}),
-                                      make_stride(Int<kTileM>{}, Int<1>{})));
+                                        make_stride(Int<kTileM>{}, Int<1>{})));
 using CopyBoxWS = decltype(make_layout(make_shape(Int<1>{}, Int<4>{}), make_stride(Int<4>{}, Int<1>{})));
 // kTileS = 64, max kTileM = 64, enough to store scale for X
 using SLayoutXS = decltype(make_layout(make_shape(Int<kStage>{}, Int<kTileS>{}),
-                                       make_stride(Int<kTileS>{}, Int<1>{})));
+                                        make_stride(Int<kTileS>{}, Int<1>{})));
 using SLayoutWS = decltype(make_layout(make_shape(Int<kStage>{}, Int<kTileS>{}),
-                                       make_stride(Int<kTileS>{}, Int<1>{})));
+                                        make_stride(Int<kTileS>{}, Int<1>{})));
 ```
 需要注意的是：对于 B scale 来说，每一个 stage 我们只需要一个 fp32 scale 用于计算，但是由于 tma 的最小 copy box 限制，hpc-ops 每次将会 copy 4 个 fp32 scale。这里还有一个技巧：我们在定义 tma copy 的时候，可以用 copy box 作为 slayout 参数传入
 ```cpp
@@ -402,43 +404,43 @@ C layout 的 V 维度就是 3 个维度 `(2, 2, N/8)`，其对应了 `(frg_V, fr
 我们对着伪代码代码简单走读一下，对整个过程的实现有一个理解。注意这里使用了 hpc-ops 当中交换 mma AB 矩阵的技巧
 
 ```cpp
-// Shared memory 中的 scale 张量布局
+// Scale tensor layout in shared memory
 // SLayoutXS: (kStage, kTileS) with stride (kTileS, 1)
 // SLayoutWS: (kStage, kTileS) with stride (kTileS, 1)
 auto sAS = make_tensor(make_smem_ptr(shm_as), SLayoutAS{});
 auto sBS = make_tensor(make_smem_ptr(shm_bs), SLayoutBS{});
 
-// K 维度累加循环
+// K-dimension accumulation loop
 for (int itile_k = 0; itile_k < ntile_k; ++itile_k) {
-  // 等待数据加载完成
-  wait_barrier(readable[ismem_read], phase);
+    // wait for data load to complete
+    wait_barrier(readable[ismem_read], phase);
 
-  // 步骤 1: 从 shared memory 读取 wscale
-  // 注意: itile_k % 4 以获得所需要的 wscale index
-  float wscale = sBS(ismem_read, itile_k % 4);
+    // Step 1: read wscale from shared memory
+    // Note: itile_k % 4 to get the required wscale index
+    float wscale = sBS(ismem_read, itile_k % 4);
 
-  // 步骤 2: 计算 xscale * wscale 得到中间 scale tCS
-  float tCS[kN];
+    // Step 2: compute xscale * wscale to get intermediate scale tCS
+    float tCS[kN];
 #pragma unroll
-  for (int in = 0; in < kN; in++) {
+    for (int in = 0; in < kN; in++) {
     tCS[in] = sAS(ismem_read, get<1>(tI_mn(0, in))) * wscale;
-  }
+    }
 
-  // 步骤 3: GMMA 计算（不包含 scale）
-  tiled_mma.accumulate_ = GMMA::ScaleOut::Zero;
-  for (int ik = 0; ik < size<2>(tAr); ++ik) {
+    // Step 3: GMMA computation (without scale)
+    tiled_mma.accumulate_ = GMMA::ScaleOut::Zero;
+    for (int ik = 0; ik < size<2>(tAr); ++ik) {
     cute::gemm(tiled_mma, tBr, tAr, tCr);
-  }
+    }
 
-  // 步骤 4: 使用 scale 进行反量化
-  auto tDr_mn = retile_fragment(tDr);
+    // Step 4: dequantize using scale
+    auto tDr_mn = retile_fragment(tDr);
 #pragma unroll
-  for (int in = 0; in < kN; in++) {
-    float yscale = tCS[in];  // 每个 N 维度有独立的 scale
+    for (int in = 0; in < kN; in++) {
+    float yscale = tCS[in];  // each N dimension has independent scale
 #pragma unroll
     for (int im = 0; im < kM; im++) {
-      tDr_mn(im, in) = tCr_mn(im, in) * yscale + tDr_mn(im, in);
+        tDr_mn(im, in) = tCr_mn(im, in) * yscale + tDr_mn(im, in);
     }
-  }
+    }
 }
 ```

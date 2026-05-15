@@ -13,10 +13,13 @@
 要理解 Group GEMM，我们先从普通的 GEMM（通用矩阵乘法）开始。
 
 **普通 GEMM** 计算的是：
-```
+
+```txt
 Y = X * W^T
 ```
+
 其中：
+
 - X 形状为 [M, K]（输入激活）
 - W 形状为 [N, K]（权重）
 - Y 形状为 [M, N]（输出）
@@ -24,6 +27,7 @@ Y = X * W^T
 **Group GEMM** 是 GEMM 的扩展，它在一次操作中执行多个独立的矩阵乘法。可以把它想象成"批量处理"不同组的矩阵乘法。
 
 在 Group GEMM 中：
+
 - 我们有 `num_group` 个独立的权重矩阵 `W_0, W_1, ..., W_{num_group-1}`
 - 输入 X 被分割成 `num_group` 个连续的组 `X_0, X_1, ..., X_{num_group-1}`
 - 每个 `X_i` 与对应的 `W_i` 相乘
@@ -40,36 +44,36 @@ Y[start_i : end_i, :] = X[start_i : end_i, :] * W[i, :, :]^T
 
 # A torch version
 def naive_group_gemm_pertensor_fp8(x, w, seqlens, cu_seqlens, scale):
-    # 步骤 1: 获取张量形状
+    # Step 1: get tensor shapes
     m, k = x.shape           # m = total_seq, k = hidden_size
     num_group, n, _ = w.shape  # n = output_dim
 
-    # 步骤 2: 初始化输出张量
+    # Step 2: init output tensor
     y = torch.zeros((m, n), dtype=torch.bfloat16, device=x.device)
 
-    # 步骤 3: 遍历每个组，执行独立的矩阵乘法
+    # Step 3: iterate each group and compute independent GEMM
     start_idx = 0
     for i in range(num_group):
-        # 获取当前组的起始和结束位置
+        # get start and end positions of current group
         start_idx = int(cu_seqlens[i].item())
         end_idx = int(start_idx + seqlens[i].item())
 
-        # 如果该组没有数据，跳过
+        # skip empty groups
         if seqlens[i].item() == 0:
             continue
 
-        # 提取当前组的输入和权重
-        x_group = x[start_idx:end_idx]  # 形状: [seqlens[i], k]
-        w_group = w[i]                   # 形状: [n, k]
+        # extract input and weight for current group
+        x_group = x[start_idx:end_idx]  # shape: [seqlens[i], k]
+        w_group = w[i]                   # shape: [n, k]
 
-        # 执行矩阵乘法（使用缩放的 FP8 运算）
+        # perform matmul (with scaled FP8)
         y_group = torch._scaled_mm(
-            x_group, w_group.t(),        # w_group.t() 形状: [k, n]
+            x_group, w_group.t(),        # w_group.t() shape: [k, n]
             scale_a=scale, scale_b=scale,
             bias=None, out_dtype=torch.bfloat16
         )
 
-        # 将结果写入输出的对应位置
+        # write result to corresponding output region
         y[start_idx:end_idx] = y_group
 
     return y
@@ -80,6 +84,7 @@ def naive_group_gemm_pertensor_fp8(x, w, seqlens, cu_seqlens, scale):
 Group GEMM 的主要应用场景是**混合专家模型（Mixture of Experts, MoE）**的推理。如果不使用 Group GEMM，我们需要把输入 X 按照专家分组拆开，对每个专家分别调用一次 GEMM，最后再把结果拼回去
 
 这样做的问题：
+
 - **多次 kernel launch 开销**：每个专家都需要一次独立的 kernel launch，launch 本身有固定开销
 - **分散的内存访问**：每个小 kernel 独立访问内存，难以形成高效的流水线访问模式。例如：前一个 group 的最后一部分数据在进行计算时，就可以开始预取下一个 group 的数据了，但独立的 kernel launch 无法做到这一点。另外，GroupGemm 最后也不需要再对各个 group 的计算结果进行拼接，减少数据读写
 
@@ -115,39 +120,39 @@ Group GEMM 的主要应用场景是**混合专家模型（Mixture of Experts, Mo
 ```cpp
 __global__ void group_gemm_pertensor_fp8_kernel(...) {
 
-  // ===== PRELOGUE =====
-  int idx = threadIdx.x;
-  bool is_producer = (idx >= 256);  // 128 threads for load
-  bool is_consumer = (idx < 256);    // 256 threads for math
+    // ===== PRELOGUE =====
+    int idx = threadIdx.x;
+    bool is_producer = (idx >= 256);  // 128 threads for load
+    bool is_consumer = (idx < 256);    // 256 threads for math
 
-  extern __shared__ uint8_t shm_data[];
-  auto* shm_a = (Tin*)shm_data;          // [kTileM, kTileK, kStage]
-  auto* shm_b = shm_a + ...;              // [kTileN, kTileK, kStage]
-  int* shm_tiles = (int*)(shm_data + ...); // For scheduler
+    extern __shared__ uint8_t shm_data[];
+    auto* shm_a = (Tin*)shm_data;          // [kTileM, kTileK, kStage]
+    auto* shm_b = shm_a + ...;              // [kTileN, kTileK, kStage]
+    int* shm_tiles = (int*)(shm_data + ...); // For scheduler
 
-  // Initialize mbarriers (producer-consumer sync)
-  if (is_leader) {
+    // Initialize mbarriers (producer-consumer sync)
+    if (is_leader) {
     for (int s = 0; s < kStage; s++) {
-      initialize_barrier(readable[s], 1);  // Consumer waits on this
-      initialize_barrier(writable[s], num_mma_warpgroup);  // Producer waits on this
+        initialize_barrier(readable[s], 1);  // Consumer waits on this
+        initialize_barrier(writable[s], num_mma_warpgroup);  // Producer waits on this
     }
-  }
-  // Load scheduler metadata to shared memory
-  for (int i = idx; i < num_group; i += 384)
+    }
+    // Load scheduler metadata to shared memory
+    for (int i = idx; i < num_group; i += 384)
     shm_tiles[i] = tiles_ptr[i];
-  __syncthreads();
+    __syncthreads();
 
-  // ===== MAINLOOP: Producer-Consumer Pipeline =====
-  int phase = 0;
+    // ===== MAINLOOP: Producer-Consumer Pipeline =====
+    int phase = 0;
 
-  if (is_producer && is_leader_in_load) {
+    if (is_producer && is_leader_in_load) {
     // PRODUCER: Load data via TMA
     int s_write = 0;  // Current stage to write
     while (true) {
-      // SCHEDULER: Get next tile (igroup, itile_m, itile_n)
-      if (!get_next_tile(shm_tiles, iblock, ...)) break;
+        // SCHEDULER: Get next tile (igroup, itile_m, itile_n)
+        if (!get_next_tile(shm_tiles, iblock, ...)) break;
 
-      for (int k = 0; k < ntile_k; k++) {
+        for (int k = 0; k < ntile_k; k++) {
         // MBARRIER: Wait for consumer to release stage
         wait_barrier(writable[s_write], phase);
 
@@ -161,18 +166,18 @@ __global__ void group_gemm_pertensor_fp8_kernel(...) {
         // Circular stage buffer
         s_write = (s_write + 1) % kStage;
         if (s_write == 0) phase ^= 1;
-      }
+        }
     }
-  }
+    }
 
-  if (is_consumer) {
+    if (is_consumer) {
     // CONSUMER: Compute via GMMA
     int s_read = 0;  // Current stage to read
     while (true) {
-      // SCHEDULER: Same as producer, get next tile
-      if (!get_next_tile(shm_tiles, iblock, ...)) break;
+        // SCHEDULER: Same as producer, get next tile
+        if (!get_next_tile(shm_tiles, iblock, ...)) break;
 
-      for (int k = 0; k < ntile_k; k++) {
+        for (int k = 0; k < ntile_k; k++) {
         // MBARRIER: Wait for producer to fill stage
         wait_barrier(readable[s_read], phase);
 
@@ -181,18 +186,18 @@ __global__ void group_gemm_pertensor_fp8_kernel(...) {
 
         // MBARRIER: Signal producer stage is consumed
         if (is_leader_in_warpgroup)
-          arrive_barrier(writable[s_read]);
+            arrive_barrier(writable[s_read]);
 
         // Circular stage buffer
         s_read = (s_read + 1) % kStage;
         if (s_read == 0) phase ^= 1;
-      }
+        }
 
-      // ===== EPILOGUE =====
-      cast_to_bf16(accum, output, pertensor_scale);
-      tma_store(output, global_Y[igroup, itile_m, itile_n]);
+        // ===== EPILOGUE =====
+        cast_to_bf16(accum, output, pertensor_scale);
+        tma_store(output, global_Y[igroup, itile_m, itile_n]);
     }
-  }
+    }
 }
 ```
 
@@ -221,14 +226,14 @@ kernels::update_grouped_tma<...>
 
 - **Grid/Block 配置**：`num_group + 1` 个 block，每个 block 32 个线程
 - **Block 分工**：
-  - Block `0 ~ num_group-1`：每个 block 处理一个 group，更新该 group 的 X 和 Y 的 TMA descriptor
-  - Block `num_group`：计算所有 group 的 tile 统计信息
+    - Block `0 ~ num_group-1`：每个 block 处理一个 group，更新该 group 的 X 和 Y 的 TMA descriptor
+    - Block `num_group`：计算所有 group 的 tile 统计信息
 
 总结：`update_grouped_tma` 在一个 kernel 中完成两件事：为每个 group 更新独立的 TMA descriptor，同时用 BlockScan 计算 tile 统计信息供后续 scheduler 使用。下面是完整的伪代码：
 
 ```cpp
 template <typename Tin, typename Tout, typename TmaX, typename TmaY,
-          int kTileM, int kGroupPerThread, int kThreadPerBlock>
+            int kTileM, int kGroupPerThread, int kThreadPerBlock>
 __global__ void update_grouped_tma(
     const vec_t<TmaDescriptor, 2> td_xy,  // template TMA descriptors (X, Y) from host
     TmaDescriptor *tma_xy,                // [num_group * 2]: X desc at 2*i, Y desc at 2*i+1
@@ -240,22 +245,22 @@ __global__ void update_grouped_tma(
     int *cu_tiles_ptr,                    // [num_group + 1]: cumulative tile M count
     int num_group, int m, int n, int k) {
 
-  int idx = threadIdx.x;
-  int igroup = blockIdx.x;
+    int idx = threadIdx.x;
+    int igroup = blockIdx.x;
 
-  if (igroup == num_group) {
+    if (igroup == num_group) {
     // ---- Case 1: Compute tile statistics (last block) ----
     int tiles[kGroupPerThread];
 
     // Step 1: Each thread computes tile counts for its assigned groups
     for (int i = 0; i < kGroupPerThread; i++) {
-      int g = idx * kGroupPerThread + i;
-      if (g < num_group) {
+        int g = idx * kGroupPerThread + i;
+        if (g < num_group) {
         tiles[i] = (seqlens_ptr[g] + kTileM - 1) / kTileM;
         tiles_ptr[g] = tiles[i];
-      } else {
+        } else {
         tiles[i] = 0;
-      }
+        }
     }
 
     // Step 2: Exclusive scan to compute cumulative tile M counts
@@ -266,16 +271,16 @@ __global__ void update_grouped_tma(
 
     // Step 3: Write cumulative results to global memory
     for (int i = 0; i < kGroupPerThread; i++) {
-      int g = idx * kGroupPerThread + i;
-      if (g < num_group) {
+        int g = idx * kGroupPerThread + i;
+        if (g < num_group) {
         cu_tiles_ptr[g] = tiles[i];
-      }
+        }
     }
     if (idx == 0) {
-      cu_tiles_ptr[num_group] = block_aggregate;  // total tile M
+        cu_tiles_ptr[num_group] = block_aggregate;  // total tile M
     }
 
-  } else {
+    } else {
     // ---- Case 2: Update TMA descriptors for group igroup ----
     __shared__ TmaDescriptor smem_tma_desc[2];
 
@@ -284,38 +289,38 @@ __global__ void update_grouped_tma(
 
     // Step 1: Copy template descriptors to shared memory
     if (idx < 2) {
-      smem_tma_desc[idx] = td_xy[idx];
+        smem_tma_desc[idx] = td_xy[idx];
     }
     __syncwarp();
 
     // Step 2: Thread 0 — update X (activation) TMA descriptor
     if (idx == 0) {
-      auto gX = make_tensor(
-          make_gmem_ptr(x_ptr + cu_seqlen * k),
-          make_shape(num_seq, k),
-          make_stride(k, Int<1>{}));              // stride unchanged: same k for all groups
-      update_tma_gtensor<TmaX>(smem_tma_desc[0], gX);
+        auto gX = make_tensor(
+            make_gmem_ptr(x_ptr + cu_seqlen * k),
+            make_shape(num_seq, k),
+            make_stride(k, Int<1>{}));              // stride unchanged: same k for all groups
+        update_tma_gtensor<TmaX>(smem_tma_desc[0], gX);
     }
 
     // Step 3: Thread 1 — update Y (output) TMA descriptor
     if (idx == 1) {
-      auto gY = make_tensor(
-          make_gmem_ptr(y_ptr + cu_seqlen * n),
-          make_shape(n, num_seq),
-          make_stride(Int<1>{}, n));              // stride unchanged: same n for all groups
-      update_tma_gtensor<TmaY>(smem_tma_desc[1], gY);
+        auto gY = make_tensor(
+            make_gmem_ptr(y_ptr + cu_seqlen * n),
+            make_shape(n, num_seq),
+            make_stride(Int<1>{}, n));              // stride unchanged: same n for all groups
+        update_tma_gtensor<TmaY>(smem_tma_desc[1], gY);
     }
 
     // Step 4: Commit smem writes, then copy descriptors from smem to gmem
     for (int i = 0; i < 2; i++) {
-      __syncwarp();
-      if (elect_one_sync()) {
+        __syncwarp();
+        if (elect_one_sync()) {
         tma_desc_commit_group();
         tma_desc_wait_group();
-      }
-      tma_descriptor_cp_fence_release(tma_xy + igroup * 2 + i, smem_tma_desc[i]);
+        }
+        tma_descriptor_cp_fence_release(tma_xy + igroup * 2 + i, smem_tma_desc[i]);
     }
-  }
+    }
 }
 ```
 
@@ -345,14 +350,15 @@ cute::copy(tma_a.with(td_x, readable[ismem_write]), tAg(_, itile_m, itile_k), tA
 
 ```cpp
 using SLayoutW = decltype(tile_to_shape(SLayoutWAtom{}, 
-                          make_shape(Int<kTileN>{}, Int<kTileK>{}, Int<kStage>{})));
+                            make_shape(Int<kTileN>{}, Int<kTileK>{}, Int<kStage>{})));
 // w is 3-dim tensor, but copy box is 2-dim
 auto tma_w = make_tma_copy(SM90_TMA_LOAD{}, w, take<0, 2>(SLayoutW{}));
 ```
 
 我之前的理解是：tma 在搬运 tensor 的时候是根据首坐标 + box dim 来确定搬运数据的范围。此时首坐标是 3D 的，box dim 是 2D 的，这似乎挑战了我之前的理解。不过回答也非常简单，现在的数据范围是根据 3D 中的前 2D 坐标 + box dim 来确定的。合理猜测，如果我们把 gmem 维度顺序变成 (num_group, n, k)，但 slayout 保持不变，那么：
-  - slayout 第 0 维 (kTileN) → gmem 第 0 维 (num_group)                                                
-  - slayout 第 1 维 (kTileK) → gmem 第 1 维 (n)                                                        
+
+    - slayout 第 0 维 (kTileN) → gmem 第 0 维 (num_group)                                                
+    - slayout 第 1 维 (kTileK) → gmem 第 1 维 (n)                                                        
 copy box 就会沿着 num_group 和 n 维度进行 copy，这显然不是我们想要的结果
 
 ### 实现细节补充
@@ -379,26 +385,26 @@ Exclusive Scan 是一种并行计算原语，对数组进行前缀和计算，�
 可以从 hpc-ops 中的代码代表了 block scan 的一般用法
 
 ```cpp
-// 第 88 行：定义 BlockScan 类型
+// Line 88: define BlockScan type
 using BlockScan = cub::BlockScan<int, kThreadPerBlock>;
-// - 模板参数 1: int - 扫描的数据类型
-// - 模板参数 2: kThreadPerBlock = 32 - block 中的线程数
+// - template param 1: int - data type for scan
+// - template param 2: kThreadPerBlock = 32 - threads per block
 
-// 第 89 行：分配共享内存
+// Line 89: allocate shared memory
 __shared__ typename BlockScan::TempStorage temp_storage;
-// - TempStorage 是 cub 内部定义的结构体
-// - 需要共享内存来协调线程间的通信
-// - 大小由 cub 自动计算
+// - TempStorage is a struct defined internally by cub
+// - shared memory needed to coordinate thread communication
+// - size computed automatically by cub
 
-// 第 90 行：用于返回总和
+// Line 90: used to return total sum
 int block_aggregate;
 
-// 第 91 行：执行 Exclusive Sum Scan
+// Line 91: execute Exclusive Sum Scan
 BlockScan(temp_storage).ExclusiveSum(tiles, tiles, block_aggregate);
-// 参数说明：
-// - tiles (输入): 每个线程贡献的数据数组
-// - tiles (输出): 扫描后的结果（原地修改）
-// - block_aggregate: 返回整个 block 的总和
+// Parameter description:
+// - tiles (input): data array contributed by each thread
+// - tiles (output): scan result (modified in-place)
+// - block_aggregate: returns total sum of the block
 ```
 
 #### TMA Descriptor 更新
@@ -407,8 +413,8 @@ BlockScan(temp_storage).ExclusiveSum(tiles, tiles, block_aggregate);
 
 1. **Host 端创建模板**：`td_xy` 包含了正确的 stride、tile size 等配置
 2. **Device 端只更新必要字段**：
-   - **全局内存地址**：指向该 group 数据的起始位置
-   - **Shape**：根据该 group 的 seqlen 设置，例如对于输入 X (activation)，其第 i 个 group 的 tma gmem tensor shape 应设置为 `[seqlens_ptr[igroup], k]`
+    - **全局内存地址**：指向该 group 数据的起始位置
+    - **Shape**：根据该 group 的 seqlen 设置，例如对于输入 X (activation)，其第 i 个 group 的 tma gmem tensor shape 应设置为 `[seqlens_ptr[igroup], k]`
 
 **为什么 stride 不需要更新？**
 
@@ -429,8 +435,8 @@ BlockScan(temp_storage).ExclusiveSum(tiles, tiles, block_aggregate);
 
 ```cpp
 if (cute::elect_one_sync()) {
-  cute::tma_desc_commit_group();
-  cute::tma_desc_wait_group();
+    cute::tma_desc_commit_group();
+    cute::tma_desc_wait_group();
 }
 ```
 

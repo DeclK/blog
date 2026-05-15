@@ -184,17 +184,17 @@ tma_store_fence()
 
     2. `warpgroup_arrive` 确保 register 的操作一定在 wgmma 完成之前
 
-       就是 PTX `wgmma.fence.sync.aligned`，阻止编译器把 mma 与之前的寄存器操作重排，如果把这些操作排到 wgmma 之后就会造成错误
+        就是 PTX `wgmma.fence.sync.aligned`，阻止编译器把 mma 与之前的寄存器操作重排，如果把这些操作排到 wgmma 之后就会造成错误
 
-       ```cpp
-       warpgroup_fence_operand(acc);// seems unnecessary
-       // some manipulations to acc, which needed by wgmma
-       warpgroup_arrive();
-       ...
-       wgmma(..., acc);
-       ...
-       warpgroup_fence_operand(acc);// seems unnecessary
-       ```
+        ```cpp
+        warpgroup_fence_operand(acc);// seems unnecessary
+        // some manipulations to acc, which needed by wgmma
+        warpgroup_arrive();
+        ...
+        wgmma(..., acc);
+        ...
+        warpgroup_fence_operand(acc);// seems unnecessary
+        ```
 
 3. wait 同步的屏障效应
 
